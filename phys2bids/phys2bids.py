@@ -38,7 +38,7 @@ import numpy as np
 from phys2bids import _version, bids, utils, viz
 from phys2bids.cli.run import _get_parser
 from phys2bids.physio_obj import BlueprintOutput
-from phys2bids.reporting.html_report import generate_report
+from phys2bids.reporting.html_report import _qc_report_filename, generate_report
 from phys2bids.slice4phys import slice4phys
 
 from . import __version__
@@ -547,14 +547,8 @@ def phys2bids(
             all_report_paths = []
             for uniq_freq in uniq_freq_list:
                 key = f"{take}_{uniq_freq}"
-                qc_html_filename = (
-                    "_".join(
-                        os.path.basename(phys_out[key].filename).split("_")[:-1]
-                    )
-                    + "_desc-log_physio.html"
-                )
-                qc_html_path = os.path.join(conversion_path, qc_html_filename)
-                all_report_paths.append((qc_html_path, f"{uniq_freq:.0f}Hz"))
+                qc_html_filename = _qc_report_filename(phys_out[key].filename)
+                all_report_paths.append((qc_html_filename, f"{uniq_freq:.0f}Hz"))
 
             for uniq_freq in uniq_freq_list:
                 key = f"{take}_{uniq_freq}"

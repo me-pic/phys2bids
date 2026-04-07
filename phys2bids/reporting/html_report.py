@@ -13,16 +13,33 @@ from bokeh.plotting import ColumnDataSource, figure
 from phys2bids import _version
 
 
-def _build_related_reports_html(all_report_paths, current_qc_html_path):
+def _qc_report_filename(phys_filename):
+    """
+    Derive the QC report HTML filename from a phys2bids output filename.
+
+    Parameters
+    ----------
+    phys_filename : str
+        The output filename (may include directory components).
+
+    Returns
+    -------
+    str
+        The QC report filename (basename only, no directory).
+    """
+    return "_".join(basename(phys_filename).split("_")[:-1]) + "_desc-log_physio.html"
+
+
+def _build_related_reports_html(all_report_paths, current_qc_filename):
     """
     Build an HTML snippet with links to sibling QC reports.
 
     Parameters
     ----------
     all_report_paths : list of tuple
-        List of (qc_html_path, label) for all reports.
-    current_qc_html_path : str
-        The QC HTML path for the current report (shown in bold).
+        List of (qc_html_filename, label) for all reports (basenames only).
+    current_qc_filename : str
+        The QC HTML filename for the current report (shown in bold).
 
     Returns
     -------
@@ -34,11 +51,11 @@ def _build_related_reports_html(all_report_paths, current_qc_html_path):
         return ""
 
     links = []
-    for qc_path, label in all_report_paths:
-        if qc_path == current_qc_html_path:
+    for qc_filename, label in all_report_paths:
+        if qc_filename == current_qc_filename:
             links.append(f"<strong>{label}</strong>")
         else:
-            links.append(f'<a href="{qc_path}">{label}</a>')
+            links.append(f'<a href="{qc_filename}">{label}</a>')
 
     inner = " | ".join(links)
     return f'<div class="header_links">Reports: {inner}</div>'
@@ -126,7 +143,7 @@ def _update_fpage_template(
     return body
 
 
-def _generate_file_tree(out_dir, report_paths=None):
+def _generate_file_tree(out_dir, report_filenames=None):
     """
     Populate a report with content.
 
@@ -134,9 +151,9 @@ def _generate_file_tree(out_dir, report_paths=None):
     ----------
     out_dir : str
         Path to the output directory
-    report_paths : list or set of str, optional
-        Paths to HTML report files that should be rendered as clickable links
-        in the tree output.
+    report_filenames : list or set of str, optional
+        Basenames of HTML report files that should be rendered as clickable
+        links in the tree output.
 
     Returns
     -------
@@ -149,7 +166,7 @@ def _generate_file_tree(out_dir, report_paths=None):
     tee = "├── "
     last = "└── "
 
-    known_reports = set(report_paths) if report_paths else set()
+    known_reports = set(report_filenames) if report_filenames else set()
 
     def tree(dir_path: Path, prefix: str = ""):
         """Generate tree structure.
@@ -164,8 +181,8 @@ def _generate_file_tree(out_dir, report_paths=None):
         # contents each get pointers that are ├── with a final └── :
         pointers = [tee] * (len(contents) - 1) + [last]
         for pointer, path in zip(pointers, contents):
-            if str(path) in known_reports:
-                entry = f'<a href="{path}">{path.name}</a>'
+            if path.name in known_reports:
+                entry = f'<a href="{path.name}">{path.name}</a>'
             else:
                 entry = path.name
             yield prefix + pointer + entry
@@ -283,24 +300,22 @@ def generate_report(out_dir, conversion_path, log_path, phys_in, all_report_path
 
     log_content = log_content.replace("\n", "<br>")
     log_html_path = join(conversion_path, basename(phys_in.filename) + ".html")
-    qc_html_filename = (
-        "_".join(basename(phys_in.filename).split("_")[:-1]) + "_desc-log_physio.html"
-    )
+    qc_html_filename = _qc_report_filename(phys_in.filename)
     qc_html_path = join(conversion_path, qc_html_filename)
 
     # Build related-reports nav snippet (empty string when there is only one report)
-    related_reports = _build_related_reports_html(all_report_paths or [], qc_html_path)
+    related_reports = _build_related_reports_html(all_report_paths or [], qc_html_filename)
 
     html = _save_as_html(log_html_path, log_content, qc_html_path, related_reports)
 
     with open(log_html_path, "wb") as f:
         f.write(html.encode("utf-8"))
 
-    # Collect all known report paths for clickable tree links
-    report_file_paths = [qc for qc, _label in (all_report_paths or [])]
+    # Collect all known report filenames for clickable tree links
+    report_filenames = [qc for qc, _label in (all_report_paths or [])]
 
     # Read in output directory structure & create tree
-    tree_string = _generate_file_tree(out_dir, report_paths=report_file_paths)
+    tree_string = _generate_file_tree(out_dir, report_filenames=report_filenames)
     bokeh_js, bokeh_div = _generate_bokeh_plots(phys_in, figsize=(250, 750))
     html = _update_fpage_template(
         tree_string, bokeh_div, bokeh_js, log_html_path, qc_html_path, related_reports
