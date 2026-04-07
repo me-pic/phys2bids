@@ -540,9 +540,27 @@ def phys2bids(
                 ),
             )
 
-            # Only generate report if specified by the user
-            if make_report:
-                generate_report(outdir, conversion_path, logname, phys_out[key])
+        # Only generate reports if specified by the user.
+        # First collect all QC report paths so reports can link to each other,
+        # then generate each report with the full list of sibling paths.
+        if make_report:
+            all_report_paths = []
+            for uniq_freq in uniq_freq_list:
+                key = f"{take}_{uniq_freq}"
+                qc_html_filename = (
+                    "_".join(
+                        os.path.basename(phys_out[key].filename).split("_")[:-1]
+                    )
+                    + "_desc-log_physio.html"
+                )
+                qc_html_path = os.path.join(conversion_path, qc_html_filename)
+                all_report_paths.append((qc_html_path, f"{uniq_freq:.0f}Hz"))
+
+            for uniq_freq in uniq_freq_list:
+                key = f"{take}_{uniq_freq}"
+                generate_report(
+                    outdir, conversion_path, logname, phys_out[key], all_report_paths
+                )
 
 
 def _main(argv=None):
